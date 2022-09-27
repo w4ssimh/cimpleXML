@@ -10,29 +10,45 @@
 //
 // Definitions
 //
-typedef struct _XMLNode
-{
-    char *tag;
-    char *innerText;
-    struct _XMLNode *parent;
-} XMLNode;
-
-// typedef struct _XMLNode XMLNode;
-typedef struct _XMLDocument
-{
-    XMLNode *root;
-} XMLDocument;
-
 typedef enum _returnErrorCode
 {
     SXML_return_FAIL = 0,
     SXML_return_OK = 1
 } returnEoorCode;
 
+typedef struct _XMLNode
+{
+    char *tag;
+    char *innerText;
+    struct _XMLNode *parent;
+    XMLAttributesList attributes;
+} XMLNode;
+
+typedef struct _XMLDocument
+{
+    XMLNode *root; // pointer to XMLNode struc (XMLNode will be filled by curr_node)
+} XMLDocument;
+
+typedef struct _XMLAttribute
+{
+    char *key;
+    char *value;
+} XMLAttribute;
+
+typedef struct _XMLAttributesList
+{
+    int heapSize;
+    int size;
+    XMLAttribute *data;
+} XMLAttributesList;
+
 bool XMLDocument_load(XMLDocument *doc, char *path);
 void XMLDocument_free(XMLDocument *doc);
 XMLNode *XMLNode_new(XMLNode *node);
 void XMLNode_free(XMLNode *node);
+void XMLAttributesListInit(XMLAttributesList *list);
+void XMLAttributesListAdd(XMLAttributesList *list, XMLAttribute *attr);
+void XMLAttributeFree(XMLAttribute *attr);
 
 //
 // Implementation
@@ -55,7 +71,7 @@ bool XMLDocument_load(XMLDocument *doc, char *path)
     fread(buf, 1, size, fp);
     fclose(fp);
 
-    buf[size] = '\0';
+    buf[size] = '\0'; // get rid of the stuff after end of xml
 
     doc->root = XMLNode_new(NULL);
 
@@ -88,12 +104,13 @@ bool XMLDocument_load(XMLDocument *doc, char *path)
                     lex[lexi++] = buf[i++];
                 lexi[lex] = '\0';
 
+                // chack if the tag didn't start with </tagName>
                 if (!curr_node)
                 {
                     fprintf(stderr, "Already at the root, or tag started with an end tag!");
                     return SXML_return_FAIL;
                 }
-
+                // check if tag names of the same node is the same or not
                 if (strcmp(curr_node->tag, lex))
                 {
                     fprintf(stderr, "tag mismatching: open tag: %s and close tag %s", curr_node->tag, lex);
@@ -111,7 +128,7 @@ bool XMLDocument_load(XMLDocument *doc, char *path)
             else
                 curr_node = XMLNode_new(curr_node);
 
-            // get tag name
+            // get beginning of tag
             i++; // skip the '<'
             while (buf[i] != '>')
                 lex[lexi++] = buf[i++];
@@ -144,6 +161,7 @@ XMLNode *XMLNode_new(XMLNode *parent)
     node->parent = parent;
     node->tag = NULL;
     node->innerText = NULL;
+    XMLAttributesListInit(&node->attributes);
     return node;
 }
 
@@ -158,5 +176,30 @@ void XMLNode_free(XMLNode *node)
         free(node->innerText);
     }
     free(node);
+    for (int i = 0; i < node->attributes.size; i++)
+        XMLAttributeFree(&node->attributes.data[i]);
+}
+
+void XMLAttributesListInit(XMLAttributesList *list)
+{
+    list->heapSize = 1;
+    list->size = 0;
+    list->data = (XMLAttribute *)malloc(sizeof(XMLAttribute) * list->heapSize);
+}
+
+void XMLAttributesListAdd(XMLAttributesList *list, XMLAttribute *attr)
+{
+    while (list->size >= list->heapSize)
+    {
+        list->heapSize *= 2;
+        list->data = (XMLAttribute *)realloc(list->data, sizeof(XMLAttribute) * list->heapSize);
+    }
+    list->data[list->size++] = *attr;
+}
+
+void XMLAttributeFree(XMLAttribute *attr)
+{
+    free(attr->key);
+    free(attr->value);
 }
 #endif
