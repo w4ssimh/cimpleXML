@@ -1,1 +1,1 @@
-<root>root data</root>
+<root key="value" another="value2">data</root>

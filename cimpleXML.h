@@ -16,19 +16,6 @@ typedef enum _returnErrorCode
     SXML_return_OK = 1
 } returnEoorCode;
 
-typedef struct _XMLNode
-{
-    char *tag;
-    char *innerText;
-    struct _XMLNode *parent;
-    XMLAttributesList attributes;
-} XMLNode;
-
-typedef struct _XMLDocument
-{
-    XMLNode *root; // pointer to XMLNode struc (XMLNode will be filled by curr_node)
-} XMLDocument;
-
 typedef struct _XMLAttribute
 {
     char *key;
@@ -41,6 +28,19 @@ typedef struct _XMLAttributesList
     int size;
     XMLAttribute *data;
 } XMLAttributesList;
+
+typedef struct _XMLNode
+{
+    char *tag;
+    char *innerText;
+    struct _XMLNode *parent;
+    XMLAttributesList attributes;
+} XMLNode;
+
+typedef struct _XMLDocument
+{
+    XMLNode *root; // pointer to XMLNode struc (XMLNode will be filled by curr_node)
+} XMLDocument;
 
 bool XMLDocument_load(XMLDocument *doc, char *path);
 void XMLDocument_free(XMLDocument *doc);
@@ -130,10 +130,62 @@ bool XMLDocument_load(XMLDocument *doc, char *path)
 
             // get beginning of tag
             i++; // skip the '<'
+            XMLAttribute curr_attr;
+            curr_attr.key = NULL;
+            curr_attr.value = NULL;
             while (buf[i] != '>')
+            {
                 lex[lexi++] = buf[i++];
+
+                // tag name
+                if (buf[i] == ' ' && !curr_node->tag)
+                {
+                    lex[lexi] = '\0';
+                    curr_node->tag = strdup(lex);
+                    lexi = 0;
+                    i++;
+                    continue;
+                }
+
+                // remove possible spaces from out lexi buffer
+                if (lex[lexi - 1] == ' ')
+                {
+                    lexi--;
+                    continue;
+                }
+
+                if (buf[i] == '=')
+                {
+                    lex[lexi] = '\0';
+                    curr_attr.key = strdup(lex);
+                    lexi = 0;
+                    continue;
+                }
+
+                if (buf[i] == '"')
+                {
+                    if (!curr_attr.key)
+                    {
+                        fprintf(stderr, "Value has no key!\n");
+                        return SXML_return_FAIL;
+                    }
+                    lexi = 0;
+                    i++;
+                    while (buf[i] != '"')
+                        lex[lexi++] = buf[i++];
+                    lex[lexi] = '\0';
+                    curr_attr.value = strdup(lex);
+                    XMLAttributesListAdd(&curr_node->attributes, &curr_attr);
+                    i++;
+                    lexi = 0;
+                    continue;
+                }
+            }
             lex[lexi] = '\0';
-            curr_node->tag = strdup(lex);
+            if (!curr_node->tag)
+            {
+                curr_node->tag = strdup(lex);
+            }
 
             // reset the lexi
             lexi = 0; // finished getting the current tag name, we point to the beginning of lex[],
